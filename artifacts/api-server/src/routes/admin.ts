@@ -120,6 +120,8 @@ function adminPage(content: string, baseUrl: string, flash = "", active: Announc
     .badge-expired { background: #fee2e2; color: #991b1b; }
     .expiry-label { font-size: .75rem; color: #22c55e; font-weight: 500; margin-top: .15rem; display: block; }
     .expiry-past { color: #ef4444; }
+    .btn-republish { background: #f97316; color: #fff; border: none; }
+    .btn-republish:hover { background: #ea6e0a; }
     .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
     .toggle-form, .delete-form { display: inline; }
     a { color: #4f46e5; text-decoration: none; }
@@ -371,9 +373,13 @@ function announcementsTable(announcements: Announcement[]): string {
         <td>${status}</td>
         <td class="actions">
           <a class="btn btn-ghost btn-sm" href="/admin/edit/${a.id}">Edit</a>
-          <form class="toggle-form" method="POST" action="/admin/toggle/${a.id}">
+          ${isExpired
+            ? `<form class="toggle-form" method="POST" action="/admin/republish/${a.id}">
+            <button class="btn btn-republish btn-sm" type="submit">Republish</button>
+          </form>`
+            : `<form class="toggle-form" method="POST" action="/admin/toggle/${a.id}">
             <button class="btn btn-ghost btn-sm" type="submit">${toggleLabel}</button>
-          </form>
+          </form>`}
           <form class="delete-form" method="POST" action="/admin/delete/${a.id}" onsubmit="return confirm('Delete this announcement?')">
             <button class="btn btn-danger btn-sm" type="submit">Delete</button>
           </form>
@@ -504,6 +510,15 @@ router.post("/admin/toggle/:id", (req, res) => {
   db.prepare(
     `UPDATE announcements SET active = CASE WHEN active = 1 THEN 0 ELSE 1 END WHERE id = ?`
   ).run(req.params.id);
+  res.redirect("/admin");
+});
+
+router.post("/admin/republish/:id", (req, res) => {
+  const now = new Date().toISOString().slice(0, 19);
+  db.prepare(
+    `UPDATE announcements SET publish_date=?, expires_at=datetime(?, '+24 hours'), active=1 WHERE id=?`
+  ).run(now, now, req.params.id);
+  (req.session as { flash?: string }).flash = "Announcement republished — live for another 24 hours.";
   res.redirect("/admin");
 });
 
