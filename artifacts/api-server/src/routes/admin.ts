@@ -117,6 +117,9 @@ function adminPage(content: string, baseUrl: string, flash = "", active: Announc
     .badge { display: inline-block; padding: .15rem .5rem; border-radius: 99px; font-size: .75rem; font-weight: 600; }
     .badge-active { background: #dcfce7; color: #166534; }
     .badge-inactive { background: #f3f4f6; color: #6b7280; }
+    .badge-expired { background: #fee2e2; color: #991b1b; }
+    .expiry-label { font-size: .75rem; color: #22c55e; font-weight: 500; margin-top: .15rem; display: block; }
+    .expiry-past { color: #ef4444; }
     .actions { display: flex; gap: .4rem; flex-wrap: wrap; }
     .toggle-form, .delete-form { display: inline; }
     a { color: #4f46e5; text-decoration: none; }
@@ -322,24 +325,49 @@ function announcementForm(a?: Announcement, editMode = false): string {
   </div>`;
 }
 
+function formatExpiry(expiresAt: string): string {
+  const now = Date.now();
+  const exp = new Date(expiresAt + "Z").getTime();
+  const diffMs = exp - now;
+  const diffMins = Math.round(diffMs / 60000);
+
+  if (diffMs <= 0) {
+    const agoMins = Math.abs(diffMins);
+    if (agoMins < 60) return `Expired ${agoMins}m ago`;
+    const agoHrs = Math.floor(agoMins / 60);
+    if (agoHrs < 24) return `Expired ${agoHrs}h ago`;
+    return `Expired ${Math.floor(agoHrs / 24)}d ago`;
+  }
+  if (diffMins < 60) return `Expires in ${diffMins}m`;
+  const hrs = Math.floor(diffMins / 60);
+  const mins = diffMins % 60;
+  if (hrs < 24) return mins > 0 ? `Expires in ${hrs}h ${mins}m` : `Expires in ${hrs}h`;
+  return `Expires in ${Math.floor(hrs / 24)}d`;
+}
+
 function announcementsTable(announcements: Announcement[]): string {
   if (announcements.length === 0) {
     return `<div class="card"><p class="no-items">No announcements yet. Add one above.</p></div>`;
   }
 
+  const now = Date.now();
   const rows = announcements
     .map((a) => {
-      const status = a.active
-        ? `<span class="badge badge-active">Active</span>`
-        : `<span class="badge badge-inactive">Inactive</span>`;
+      const isExpired = new Date(a.expires_at + "Z").getTime() <= now;
+      const expiryLabel = formatExpiry(a.expires_at);
+      const status = isExpired
+        ? `<span class="badge badge-expired">Expired</span>`
+        : a.active
+          ? `<span class="badge badge-active">Active</span>`
+          : `<span class="badge badge-inactive">Inactive</span>`;
       const toggleLabel = a.active ? "Deactivate" : "Activate";
       const date = new Date(a.publish_date).toLocaleString("en-GB", {
         day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
       });
-      return `<tr>
+      return `<tr${isExpired ? ' style="opacity:.6"' : ""}>
         <td><strong>${a.headline}</strong><br/><span style="color:#6b7280;font-size:.8rem">${a.description.slice(0, 80)}${a.description.length > 80 ? "…" : ""}</span></td>
         <td>${a.category ?? "—"}</td>
-        <td>${date}</td>
+        <td>${date}<br/><span class="expiry-label${isExpired ? " expiry-past" : ""}">${expiryLabel}</span></td>
         <td>${status}</td>
         <td class="actions">
           <a class="btn btn-ghost btn-sm" href="/admin/edit/${a.id}">Edit</a>
@@ -357,7 +385,7 @@ function announcementsTable(announcements: Announcement[]): string {
   return `<div class="card">
     <h2>All Announcements</h2>
     <table>
-      <thead><tr><th>Headline</th><th>Category</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Headline</th><th>Category</th><th>Published / Expires</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </div>`;
@@ -405,7 +433,10 @@ router.get("/admin", (req, res) => {
     .prepare(`SELECT * FROM announcements ORDER BY publish_date DESC`)
     .all() as Announcement[];
 
-  const active = announcements.filter((a) => a.active === 1);
+  const nowTs = Date.now();
+  const active = announcements.filter(
+    (a) => a.active === 1 && new Date(a.expires_at + "Z").getTime() > nowTs
+  );
 
   const content = announcementForm() + announcementsTable(announcements);
   res.send(adminPage(content, baseUrl, flash, active));
@@ -432,12 +463,13 @@ router.post("/admin/add", (req, res) => {
   };
 
   db.prepare(
-    `INSERT INTO announcements (headline, description, link, category, publish_date, active) VALUES (?, ?, ?, ?, ?, 1)`
+    `INSERT INTO announcements (headline, description, link, category, publish_date, expires_at, active) VALUES (?, ?, ?, ?, ?, datetime(?, '+24 hours'), 1)`
   ).run(
     headline.trim(),
     description.trim(),
     link?.trim() || null,
     category?.trim() || null,
+    publish_date,
     publish_date,
   );
 
@@ -452,12 +484,13 @@ router.post("/admin/edit/:id", (req, res) => {
   };
 
   db.prepare(
-    `UPDATE announcements SET headline=?, description=?, link=?, category=?, publish_date=?, active=? WHERE id=?`
+    `UPDATE announcements SET headline=?, description=?, link=?, category=?, publish_date=?, expires_at=datetime(?, '+24 hours'), active=? WHERE id=?`
   ).run(
     headline.trim(),
     description.trim(),
     link?.trim() || null,
     category?.trim() || null,
+    publish_date,
     publish_date,
     active === "1" ? 1 : 0,
     req.params.id,

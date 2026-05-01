@@ -23,7 +23,7 @@ router.get("/rss.xml", (req, res) => {
 
   const announcements = db
     .prepare(
-      `SELECT * FROM announcements WHERE active = 1 ORDER BY publish_date DESC`
+      `SELECT * FROM announcements WHERE active = 1 AND datetime('now') < expires_at ORDER BY publish_date DESC`
     )
     .all() as Announcement[];
 
