@@ -46,4 +46,8 @@ app.use(rssRouter);
 app.use(adminRouter);
 app.use("/api", router);
 
+app.get("/", (_req, res) => {
+  res.redirect("/admin");
+});
+
 export default app;
