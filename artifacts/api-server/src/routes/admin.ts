@@ -10,7 +10,65 @@ function isAuthenticated(req: Request): boolean {
   return (req.session as { authenticated?: boolean }).authenticated === true;
 }
 
-function adminPage(content: string, baseUrl: string, flash = ""): string {
+const CATEGORY_COLORS: Record<string, string> = {
+  Sales: "#22c55e",
+  Compliance: "#f59e0b",
+  Payroll: "#3b82f6",
+  Jobs: "#a855f7",
+  "Internal News": "#ec4899",
+};
+
+function tickerPreview(active: Announcement[]): string {
+  if (active.length === 0) {
+    return `<div class="card">
+      <h2>Dashboard Ticker Preview</h2>
+      <p class="no-items">No active announcements — add one below to see the ticker preview.</p>
+    </div>`;
+  }
+
+  const sep = `<span class="tick-sep">◆</span>`;
+  const items = active
+    .map((a) => {
+      const catColor = a.category ? (CATEGORY_COLORS[a.category] ?? "#6b7280") : null;
+      const catTag = catColor
+        ? `<span class="tick-cat" style="background:${catColor}">${a.category}</span>`
+        : "";
+      return `${catTag}<span class="tick-headline">${a.headline}</span><span class="tick-desc"> — ${a.description}</span>${sep}`;
+    })
+    .join(" ");
+
+  const doubleItems = items + " " + items;
+
+  const charCount = active.reduce(
+    (n, a) => n + (a.headline.length + a.description.length + (a.category?.length ?? 0) + 10),
+    0
+  );
+  const duration = Math.max(20, Math.round(charCount * 0.12));
+
+  return `<div class="card ticker-card">
+    <div class="ticker-label">Dashboard Ticker Preview</div>
+    <div class="tv-screen">
+      <div class="tv-top-bar">
+        <div class="tv-top-left">
+          <div class="live-dot"></div>
+          <span>LIVE</span>
+        </div>
+        <div class="tv-clock" id="tvClock">--:--</div>
+      </div>
+      <div class="tv-body">
+        <div class="tv-breaking">ANNOUNCEMENTS</div>
+        <div class="tv-ticker-wrap">
+          <div class="tv-ticker-track" style="animation-duration:${duration}s" id="tickerTrack">
+            ${doubleItems}
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="ticker-hint">This preview auto-scrolls exactly as your active announcements will appear on a Bullhorn Analytics TV dashboard.</p>
+  </div>`;
+}
+
+function adminPage(content: string, baseUrl: string, flash = "", active: Announcement[] = []): string {
   const baseUrlWarning =
     !baseUrl
       ? `<div class="warning">⚠️ <strong>BASE_URL is not set.</strong> Set the <code>BASE_URL</code> environment variable to your public Replit URL (e.g. <code>https://your-app.replit.app</code>) before using the RSS feed in Bullhorn Analytics.</div>`
@@ -30,7 +88,7 @@ function adminPage(content: string, baseUrl: string, flash = ""): string {
     header { background: #1a1a2e; color: #fff; padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; }
     header h1 { font-size: 1.25rem; font-weight: 600; }
     header span { opacity: .6; font-size: .85rem; }
-    main { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    main { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
     .card { background: #fff; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
     h2 { font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: #333; }
     label { display: block; font-size: .85rem; font-weight: 500; margin-bottom: .3rem; color: #444; }
@@ -65,6 +123,84 @@ function adminPage(content: string, baseUrl: string, flash = ""): string {
     a:hover { text-decoration: underline; }
     .logout { margin-left: auto; }
     .no-items { color: #9ca3af; font-size: .9rem; padding: .5rem 0; }
+
+    /* ── Ticker preview ── */
+    .ticker-card { padding: 1.25rem 1.5rem; }
+    .ticker-label { font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; color: #333; }
+    .tv-screen {
+      background: #0a0a0f;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 3px solid #1e293b;
+      box-shadow: 0 0 0 6px #0f172a, 0 8px 32px rgba(0,0,0,.5);
+    }
+    .tv-top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #0f172a; padding: .45rem 1rem;
+    }
+    .tv-top-left { display: flex; align-items: center; gap: .5rem; color: #94a3b8; font-size: .75rem; letter-spacing: .08em; font-weight: 600; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; animation: blink 1.2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .tv-clock { color: #94a3b8; font-size: .75rem; font-variant-numeric: tabular-nums; letter-spacing: .05em; }
+    .tv-body { display: flex; align-items: stretch; }
+    .tv-breaking {
+      flex-shrink: 0;
+      background: #dc2626;
+      color: #fff;
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      writing-mode: horizontal-tb;
+      padding: .65rem 1rem;
+      display: flex; align-items: center;
+      white-space: nowrap;
+    }
+    .tv-ticker-wrap {
+      flex: 1; overflow: hidden;
+      background: #0d1117;
+      display: flex; align-items: center;
+      height: 42px;
+    }
+    .tv-ticker-track {
+      display: flex; align-items: center; gap: 0;
+      white-space: nowrap;
+      animation: tickerScroll linear infinite;
+      will-change: transform;
+    }
+    @keyframes tickerScroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .tick-cat {
+      display: inline-block;
+      color: #0a0a0f;
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      padding: .15rem .5rem;
+      border-radius: 3px;
+      margin-right: .5rem;
+      vertical-align: middle;
+    }
+    .tick-headline {
+      color: #f8fafc;
+      font-size: .85rem;
+      font-weight: 700;
+      letter-spacing: .01em;
+    }
+    .tick-desc {
+      color: #94a3b8;
+      font-size: .82rem;
+      font-weight: 400;
+    }
+    .tick-sep {
+      color: #dc2626;
+      margin: 0 1.4rem;
+      font-size: .7rem;
+      vertical-align: middle;
+    }
+    .ticker-hint { margin-top: .85rem; font-size: .8rem; color: #9ca3af; }
+    .ticker-controls { display: flex; gap: .75rem; margin-top: .85rem; }
   </style>
 </head>
 <body>
@@ -86,6 +222,7 @@ function adminPage(content: string, baseUrl: string, flash = ""): string {
         <a class="btn btn-ghost" href="/rss.xml" target="_blank">Open feed ↗</a>
       </div>
     </div>
+    ${tickerPreview(active)}
     ${content}
   </main>
   <script>
@@ -96,6 +233,18 @@ function adminPage(content: string, baseUrl: string, flash = ""): string {
         btn.textContent = 'Copied!';
         setTimeout(() => btn.textContent = 'Copy URL', 2000);
       });
+    }
+    function updateClock() {
+      const el = document.getElementById('tvClock');
+      if (!el) return;
+      const now = new Date();
+      el.textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+    const track = document.getElementById('tickerTrack');
+    if (track) {
+      track.addEventListener('animationiteration', () => {});
     }
   </script>
 </body>
@@ -256,8 +405,10 @@ router.get("/admin", (req, res) => {
     .prepare(`SELECT * FROM announcements ORDER BY publish_date DESC`)
     .all() as Announcement[];
 
+  const active = announcements.filter((a) => a.active === 1);
+
   const content = announcementForm() + announcementsTable(announcements);
-  res.send(adminPage(content, baseUrl, flash));
+  res.send(adminPage(content, baseUrl, flash, active));
 });
 
 router.get("/admin/edit/:id", (req, res) => {
