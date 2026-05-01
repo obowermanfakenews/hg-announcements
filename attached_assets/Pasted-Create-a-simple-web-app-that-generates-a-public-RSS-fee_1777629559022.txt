@@ -1,0 +1,77 @@
+Create a simple web app that generates a public RSS feed URL I can copy directly into Bullhorn Analytics.
+
+Context:
+I work in a healthcare recruitment business and want to display company announcements as headline news on a TV dashboard using Bullhorn Analytics. Bullhorn Analytics has an RSS Feed settings page where I need to paste a standard RSS feed URL into a field called “RSS Feed URL”. The app must therefore give me one clean public URL, such as:
+
+https://my-replit-app.replit.app/rss.xml
+
+This URL should return valid RSS XML directly in the browser, with no login, no buttons, and no extra page wrapper.
+
+Core requirement:
+The app must produce a live RSS 2.0 feed at /rss.xml that can be copied and pasted into Bullhorn Analytics.
+
+Build requirements:
+1. Create a clean admin page at /admin where I can add and manage company announcements.
+2. Protect /admin with a simple password using an environment variable called ADMIN_PASSWORD.
+3. Do not protect /rss.xml. This must be public so Bullhorn Analytics can read it.
+4. Each announcement should have:
+- Headline
+- Short description/body text
+- Optional link
+- Publish date/time
+- Optional category, e.g. Sales, Compliance, Payroll, Jobs, Internal News
+- Active/inactive toggle
+5. Store announcements in SQLite.
+6. The RSS feed should include only active announcements.
+7. The RSS feed should show the newest announcements first.
+8. The RSS feed should be valid RSS 2.0 XML.
+9. Escape all XML fields properly so special characters do not break the feed.
+10. Add a visible “Copy RSS Feed URL” box/button on the admin page showing the full URL from BASE_URL + /rss.xml.
+11. Use an environment variable called BASE_URL for the public Replit URL.
+12. If BASE_URL is not set, show a warning in the admin page telling me to set it before using the feed in Bullhorn Analytics.
+
+RSS channel details:
+- Channel title: Hunter Gatherer Mental Health Announcements
+- Channel description: Internal company announcements and headline updates
+- Channel link: BASE_URL
+- RSS feed path: /rss.xml
+
+Each RSS item should include:
+- title
+- description
+- link, using the optional link if provided, otherwise BASE_URL
+- guid, using a unique announcement ID
+- pubDate, formatted correctly for RSS
+- category, only if provided
+
+Admin page features:
+- Add announcement
+- Edit announcement
+- Delete announcement
+- Toggle active/inactive
+- Preview current active announcements
+- Copy the RSS URL
+- Link to open /rss.xml in a new tab
+
+Suggested tech stack:
+Use Node.js, Express, SQLite and simple HTML templates. Keep it lightweight and suitable for Replit.
+
+Please generate the full working Replit project, including:
+- package.json
+- server.js
+- database setup
+- views/templates or inline HTML
+- public CSS
+- README instructions
+
+Important:
+The main thing I need is a URL that can be pasted directly into the Bullhorn Analytics “RSS Feed URL” field. The final deployed feed URL should look like:
+
+https://YOUR-REPLIT-APP.replit.app/rss.xml
+
+Please include clear instructions on how to:
+1. Run it in Replit
+2. Set ADMIN_PASSWORD
+3. Set BASE_URL
+4. Add an announcement
+5. Copy the RSS feed URL into Bullhorn Analytics
