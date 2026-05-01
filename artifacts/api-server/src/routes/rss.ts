@@ -4,22 +4,18 @@ import { getBaseUrl } from "../lib/baseUrl";
 
 const router = Router();
 
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+function cdata(str: string): string {
+  return `<![CDATA[${str.replace(/\]\]>/g, "]]]]><![CDATA[>")}]]>`;
 }
 
 function toRssDate(dateStr: string): string {
-  const d = new Date(dateStr);
+  const d = new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z");
   return d.toUTCString();
 }
 
 router.get("/rss.xml", (req, res) => {
   const baseUrl = getBaseUrl();
+  const feedUrl = `${baseUrl}/rss.xml`;
 
   const announcements = db
     .prepare(
@@ -29,14 +25,14 @@ router.get("/rss.xml", (req, res) => {
 
   const items = announcements
     .map((a) => {
-      const link = a.link ? escapeXml(a.link) : escapeXml(baseUrl || "https://example.com");
+      const link = a.link ? a.link : baseUrl || "";
       const categoryTag = a.category
-        ? `\n      <category>${escapeXml(a.category)}</category>`
+        ? `\n      <category>${cdata(a.category)}</category>`
         : "";
       return `
     <item>
-      <title>${escapeXml(a.headline)}</title>
-      <description>${escapeXml(a.description)}</description>
+      <title>${cdata(a.headline)}</title>
+      <description>${cdata(a.description)}</description>
       <link>${link}</link>
       <guid isPermaLink="false">announcement-${a.id}</guid>
       <pubDate>${toRssDate(a.publish_date)}</pubDate>${categoryTag}
@@ -45,17 +41,23 @@ router.get("/rss.xml", (req, res) => {
     .join("");
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss version="2.0"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
-    <title>Hunter Gatherer Mental Health Announcements</title>
-    <description>Internal company announcements and headline updates</description>
-    <link>${escapeXml(baseUrl || "https://example.com")}</link>
+    <title>${cdata("Hunter Gatherer Mental Health Announcements")}</title>
+    <description>${cdata("Internal company announcements and headline updates")}</description>
+    <link>${baseUrl || ""}</link>
+    <atom:link href="${feedUrl}" rel="self" type="application/rss+xml"/>
     <language>en-gb</language>
+    <ttl>5</ttl>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${items}
   </channel>
 </rss>`;
 
-  res.set("Content-Type", "application/rss+xml; charset=utf-8");
+  res.set("Content-Type", "text/xml; charset=utf-8");
+  res.set("Cache-Control", "public, max-age=60");
   res.send(xml);
 });
 
